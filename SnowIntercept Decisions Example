@@ -1,0 +1,60 @@
+%matplotlib inline
+import matplotlib.pyplot as plt # if you want to do some plotting using matplotlib (optional)
+import numpy as np # provide some mathematical functions
+import xarray as xr # read, write, manipulate and analyze NetCDF files
+cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
+import warnings
+warnings.filterwarnings('ignore')
+import pysumma as ps
+
+##Create a SUMMA simulation object.
+executable = 'summa.exe'
+filemanager = './umpqua/settings/snow_fileManager_rescaled_wind.txt'
+s = ps.Simulation(executable, filemanager)
+
+force_file_wind = s.force_file_list.options[0].name
+force_wind = s.force_file_list.options[0].value
+
+##To check that the winds are indeed different, we can quickly plot them
+force_wind['windspd'].isel(hru=0).plot(label='Clearing')
+force_wind['windspd'].isel(hru=1).plot(label='Forest')
+plt.ylim(0,force_wind['windspd'].max())
+plt.legend()
+
+
+##Plot the sticky snow scenario
+s_intercept = ps.Simulation(executable, filemanager)
+s_intercept.decisions['snowIncept'] = 'stickySnow'
+s_intercept.run('local', run_suffix='sticky_snow')
+s_intercept
+
+s_intercept.output.close()
+
+##Plot the light snow scenario
+s_default = ps.Simulation(executable, filemanager)
+s_default.decisions['snowIncept'] = 'lightSnow'
+s_default.run('local', run_suffix='light_snow')
+s_default
+
+s_default.output.close()
+
+##Download the SWE obs
+swe_file = './umpqua/observations/Storck_9697_SWE_obs.nc'
+swe_obs = xr.open_dataset(swe_file)
+
+plt.figure(figsize=(10,6))
+swe_obs['SWE'].isel(hru=0).plot(label='Clearing -- obs',
+                             color=cycle[0], linestyle=':')
+swe_obs['SWE'].isel(hru=1).plot(label='Forest -- obs',
+                             color=cycle[1], linestyle=':')
+s_intercept.output['scalarSWE'].isel(hru=0).plot(label='Clearing -- sticky',
+                                        color=cycle[0], linestyle='--')
+s_intercept.output['scalarSWE'].isel(hru=1).plot(label='Forest -- sticky',
+                                        color=cycle[1], linestyle='--')
+s_default.output['scalarSWE'].isel(hru=0).plot(label='Clearing -- sticky',
+                                        color=cycle[0], linestyle='-')
+s_default.output['scalarSWE'].isel(hru=1).plot(label='Forest -- sticky',
+                                        color=cycle[1], linestyle='-')
+max_swe = max(s_intercept.output['scalarSWE'].max(),swe_obs['SWE'].max())
+plt.ylim(0,max_swe)
+plt.legend()
